@@ -1,0 +1,167 @@
+[css534@cssmpi1h ~]$ cat mpd.hosts
+cssmpi2h.uwb.edu
+cssmpi3h.uwb.edu
+cssmpi4h.uwb.edu
+cssmpi5h.uwb.edu
+cssmpi6h.uwb.edu
+[css534@cssmpi1h ~]$ CSSmpdboot -n 6 -v
+Preparing...
+Starting Master's mpd Process...
+Starting node: cssmpi2h.uwb.edu
+Starting node: cssmpi3h.uwb.edu
+Starting node: cssmpi4h.uwb.edu
+Starting node: cssmpi5h.uwb.edu
+Starting node: cssmpi6h.uwb.edu
+Cluster built:
+cssmpi1h.uwb.edu_40623 (10.158.82.61)
+cssmpi6h.uwb.edu_46873 (10.158.82.66)
+cssmpi4h.uwb.edu_42751 (10.158.82.64)
+cssmpi3h.uwb.edu_39625 (10.158.82.63)
+cssmpi2h.uwb.edu_46799 (10.158.82.62)
+CSSmpdboot finished!
+[css534@cssmpi1h ~]$ cd prog2
+[css534@cssmpi1h prog2]$ ./Wave2D 100 500 10 > out1.txt
+Elapsed time = 244447
+[css534@cssmpi1h prog2]$ mpirun -np 6 ./Wave2D_mpi 100 500 10 4 > out6.txt
+rank[0]'s range = 0 ~ 16
+rank[1]'s range = 17 ~ 33
+rank[2]'s range = 34 ~ 50
+rank[3]'s range = 51 ~ 67
+rank[4]'s range = 68 ~ 83
+rank[5]'s range = 84 ~ 99
+Elapsed time = 2345264
+[css534@cssmpi1h prog2]$ diff out1.txt out6.txt
+[css534@cssmpi1h prog2]$ mpirun -np 1 ./Wave2D_mpi 588 500 0 1
+rank[0]'s range = 0 ~ 587
+Elapsed time = 2214991
+[css534@cssmpi1h prog2]$ mpirun -np 1 ./Wave2D_mpi 588 500 0 2
+rank[0]'s range = 0 ~ 587
+Elapsed time = 1160892
+[css534@cssmpi1h prog2]$ mpirun -np 1 ./Wave2D_mpi 588 500 0 3
+rank[0]'s range = 0 ~ 587
+Elapsed time = 1457169
+[css534@cssmpi1h prog2]$ mpirun -np 1 ./Wave2D_mpi 588 500 0 4
+rank[0]'s range = 0 ~ 587
+Elapsed time = 1113597
+[css534@cssmpi1h prog2]$ mpirun -np 2 ./Wave2D_mpi 588 500 0 1
+rank[0]'s range = 0 ~ 293
+rank[1]'s range = 294 ~ 587
+Elapsed time = 5522972
+[css534@cssmpi1h prog2]$ mpirun -np 2 ./Wave2D_mpi 588 500 0 2
+rank[0]'s range = 0 ~ 293
+rank[1]'s range = 294 ~ 587
+Elapsed time = 4337717
+[css534@cssmpi1h prog2]$ mpirun -np 2 ./Wave2D_mpi 588 500 0 3
+rank[0]'s range = 0 ~ 293
+rank[1]'s range = 294 ~ 587
+Elapsed time = 2537370
+[css534@cssmpi1h prog2]$ mpirun -np 2 ./Wave2D_mpi 588 500 0 4
+rank[0]'s range = 0 ~ 293
+rank[1]'s range = 294 ~ 587
+Elapsed time = 2972065
+[css534@cssmpi1h prog2]$ mpirun -np 3 ./Wave2D_mpi 588 500 0 1
+rank[0]'s range = 0 ~ 195
+rank[1]'s range = 196 ~ 391
+rank[2]'s range = 392 ~ 587
+Elapsed time = 4503573
+[css534@cssmpi1h prog2]$ mpirun -np 3 ./Wave2D_mpi 588 500 0 2
+rank[0]'s range = 0 ~ 195
+rank[1]'s range = 196 ~ 391
+rank[2]'s range = 392 ~ 587
+Elapsed time = 3539224
+[css534@cssmpi1h prog2]$ mpirun -np 3 ./Wave2D_mpi 588 500 0 3
+rank[0]'s range = 0 ~ 195
+rank[2]'s range = 392 ~ 587
+rank[1]'s range = 196 ~ 391
+Elapsed time = 1960158
+[css534@cssmpi1h prog2]$ mpirun -np 3 ./Wave2D_mpi 588 500 0 4
+rank[0]'s range = 0 ~ 195
+rank[1]'s range = 196 ~ 391
+rank[2]'s range = 392 ~ 587
+Elapsed time = 1801388
+[css534@cssmpi1h prog2]$ mpirun -np 4 ./Wave2D_mpi 588 500 0 1
+rank[0]'s range = 0 ~ 146
+rank[1]'s range = 147 ~ 293
+rank[2]'s range = 294 ~ 440
+rank[3]'s range = 441 ~ 587
+Elapsed time = 3284363
+[css534@cssmpi1h prog2]$ mpirun -np 4 ./Wave2D_mpi 588 500 0 2
+rank[1]'s range = 147 ~ 293
+rank[0]'s range = 0 ~ 146
+rank[2]'s range = 294 ~ 440
+rank[3]'s range = 441 ~ 587
+Elapsed time = 1679522
+[css534@cssmpi1h prog2]$ mpirun -np 4 ./Wave2D_mpi 588 500 0 3
+rank[0]'s range = 0 ~ 146
+rank[1]'s range = 147 ~ 293
+rank[3]'s range = 441 ~ 587
+rank[2]'s range = 294 ~ 440
+Elapsed time = 1386343
+[css534@cssmpi1h prog2]$ mpirun -np 4 ./Wave2D_mpi 588 500 0 4
+rank[0]'s range = 0 ~ 146
+rank[1]'s range = 147 ~ 293
+rank[2]'s range = 294 ~ 440
+rank[3]'s range = 441 ~ 587
+Elapsed time = 1317149
+[css534@cssmpi1h prog2]$ mpirun -np 5 ./Wave2D_mpi 588 500 0 1
+rank[0]'s range = 0 ~ 117
+rank[1]'s range = 118 ~ 235
+rank[2]'s range = 236 ~ 353
+rank[3]'s range = 354 ~ 470
+rank[4]'s range = 471 ~ 587
+Elapsed time = 2225797
+[css534@cssmpi1h prog2]$ mpirun -np 5 ./Wave2D_mpi 588 500 0 2
+rank[0]'s range = 0 ~ 117
+rank[1]'s range = 118 ~ 235
+rank[4]'s range = 471 ~ 587
+rank[2]'s range = 236 ~ 353
+rank[3]'s range = 354 ~ 470
+Elapsed time = 1220757
+[css534@cssmpi1h prog2]$ mpirun -np 5 ./Wave2D_mpi 588 500 0 3
+rank[0]'s range = 0 ~ 117
+rank[2]'s range = 236 ~ 353
+rank[1]'s range = 118 ~ 235
+rank[3]'s range = 354 ~ 470
+rank[4]'s range = 471 ~ 587
+Elapsed time = 1106171
+[css534@cssmpi1h prog2]$ mpirun -np 5 ./Wave2D_mpi 588 500 0 4
+rank[0]'s range = 0 ~ 117
+rank[2]'s range = 236 ~ 353
+rank[3]'s range = 354 ~ 470
+rank[4]'s range = 471 ~ 587
+rank[1]'s range = 118 ~ 235
+Elapsed time = 1104118
+[css534@cssmpi1h prog2]$ mpirun -np 6 ./Wave2D_mpi 588 500 0 1
+rank[0]'s range = 0 ~ 97
+rank[2]'s range = 196 ~ 293
+rank[1]'s range = 98 ~ 195
+rank[3]'s range = 294 ~ 391
+rank[4]'s range = 392 ~ 489
+rank[5]'s range = 490 ~ 587
+Elapsed time = 1619450
+[css534@cssmpi1h prog2]$ mpirun -np 6 ./Wave2D_mpi 588 500 0 2
+rank[0]'s range = 0 ~ 97
+rank[2]'s range = 196 ~ 293
+rank[1]'s range = 98 ~ 195
+rank[3]'s range = 294 ~ 391
+rank[4]'s range = 392 ~ 489
+rank[5]'s range = 490 ~ 587
+Elapsed time = 975132
+[css534@cssmpi1h prog2]$ mpirun -np 6 ./Wave2D_mpi 588 500 0 3
+rank[0]'s range = 0 ~ 97
+rank[1]'s range = 98 ~ 195
+rank[2]'s range = 196 ~ 293
+rank[3]'s range = 294 ~ 391
+rank[4]'s range = 392 ~ 489
+rank[5]'s range = 490 ~ 587
+Elapsed time = 1028775
+[css534@cssmpi1h prog2]$ mpirun -np 6 ./Wave2D_mpi 588 500 0 4
+rank[0]'s range = 0 ~ 97
+rank[1]'s range = 98 ~ 195
+rank[2]'s range = 196 ~ 293
+rank[3]'s range = 294 ~ 391
+rank[5]'s range = 490 ~ 587
+rank[4]'s range = 392 ~ 489
+Elapsed time = 967691
+[css534@cssmpi1h prog2]$ mpdallexit
+[css534@cssmpi1h prog2]$ 

@@ -1,0 +1,106 @@
+The process for setting it up to run the first time for each user is
+cumbersome.  After the initial user set-up it works well without much
+fuss.
+
+# login as self
+# make file .mpd.conf  vi/emacs/pico .mpd.conf    
+# in it write one line:
+secretword=<secretword>
+
+where <secretword> is a secure key you create but not your normal password
+save the file. You may write:
+secretword=css534
+
+# set the correct permissions on this file (other permissions won't work)
+chmod 600 .mpd.conf
+
+# create the mpd.hosts file in your "home" directry.
+The file should include a list of cssmpi "slave" machines as seen in
+~mfukuda/css534/lab2/mpd.hosts:
+
+cssmpi2.uwb.edu
+cssmpi3.uwb.edu
+cssmpi4.uwb.edu
+
+Don't include the machine that will become your master node or rank0.
+Make sure that mpd.hosts is stored in your home directory rather than
+your working directory.
+
+Edit .bash_profile file - add mpich path to $PATH 
+PATH=/usr/apps/mpich121-`uname -p`/bin:$PATH
+export PATH
+
+either relogin or type at the command line:
+export PATH=/usr/apps/mpich121-`uname -p`/bin:$PATH
+
+# test that your set-up works on the current host
+mpd &
+mpiexec -n 1 /bin/hostname
+mpdallexit
+
+# if you get an error or warning this is a problem.  
+# You should get the hostname of your current host
+
+**  Need to be able to ssh without a password to other machines in order to
+use MPICH.  If this is not already set up:
+
+Find and run setup_mpi_cluster.sh.
+
+If that script is not found, you can manually execute "ssh-keygen -t
+rsa" as ddescribed below:
+
+**************************************************************************
+**  ssh-keygen -t rsa                                                   **
+**  #  at "Enter file in which to save key", <enter> to accept default  **
+**  #  at "Enter passphrase" <enter> to keep the passphrase empty.      **
+**  #  do the same thing again                                          **
+**  #  then go to the .ssh directory                                    **
+**  # and change the name of id_rsa.pub to authorized_keys              **
+**  cd .ssh                                                             **
+**  mv id_rsa.pub authorized_keys                                       **
+**  # ssh to all lab machines to set up                                 **
+**  # first ssh need to respond "yes" to "continue connecting"          **
+**************************************************************************
+
+The first time a new host is added to the first "ring". This in turn means
+that, before running mpdboot, you need to login all the slave nodes from
+the master. In the above mpd.hosts example. you need to login from
+cssmpi1h to 
+
+cssmpi2
+cssmpi3
+cssmpi4
+
+Thereafter, you can launch mpd at all nodes. Type the following commands from your home directory:
+mfukuda@cssmpi1 ~]$ CSSmpdboot -n 4 -v
+
+Preparing...
+Starting Master's mpd Process...
+Starting node: cssmpi2
+Starting node: cssmpi3
+Starting node: cssmpi4
+Cluster built:
+cssmpi1_46768 (172.28.203.196)
+CSSmpdboot finished!
+[mfukuda@cssmpi1 ~]$
+
+To make sure if all mpds are running, type:
+[mfukuda@cssmpi1 ~]$ mpiexec -n 4 /bin/hostname
+cssmpi4
+cssmpi1
+cssmpi2
+cssmpi3
+[mfukuda@cssmpi1 ~]$
+
+To run the professor's matrix_mpi program, type:
+[13:46:03] mfukuda@cssmpi1: ~/css534/lab2 $ mpiexec -n 1 ./matrix_mpi 200
+elapsed time = 57309
+[13:46:08] mfukuda@cssmpi1: ~/css534/lab2 $ mpiexec -n 2 ./matrix_mpi 200
+elapsed time = 26917
+[13:46:13] mfukuda@cssmpi1: ~/css534/lab2 $ mpiexec -n 4 ./matrix_mpi 200
+elapsed time = 23591
+
+To stop all mpds, type:
+[mfukuda@cssmpi1 ~]$ mpdallexit
+
+Whenever, you log off, don't forget to type mpdallexit.

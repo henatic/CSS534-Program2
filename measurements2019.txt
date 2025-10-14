@@ -1,0 +1,66 @@
+[13:58:28] mfukuda@cssmpi1: ~/css534 $ cat mpd.hosts
+cssmpi2.uwb.edu
+cssmpi3.uwb.edu
+cssmpi4.uwb.edu
+[13:58:30] mfukuda@cssmpi1: ~/css534 $ CSSmpdboot -n 4 -v
+Preparing...
+Starting Master's mpd Process...
+Starting node: cssmpi2
+Starting node: cssmpi3
+Starting node: cssmpi4
+Cluster built:
+cssmpi1_37210 (172.28.203.196)
+cssmpi4_38627 (172.28.203.199)
+cssmpi3_35061 (172.28.203.198)
+CSSmpdboot finished!
+[13:58:39] mfukuda@cssmpi1: ~/css534 $ cd prog2
+[13:58:44] mfukuda@cssmpi1: ~/css534/prog2 $ ./Wave2D 100 500 10 > out1.txt
+Elapsed time = 360823
+[13:59:05] mfukuda@cssmpi1: ~/css534/prog2 $ mpirun -n 4 ./Wave2D_mpi 100 500 10 4 > out4.txt
+rank[0]'s range = 0 ~ 24
+rank[1]'s range = 25 ~ 49
+rank[3]'s range = 75 ~ 99
+rank[2]'s range = 50 ~ 74
+Elapsed time = 1347900
+[13:59:41] mfukuda@cssmpi1: ~/css534/prog2 $ diff out1.txt out4.txt
+[13:59:57] mfukuda@cssmpi1: ~/css534/prog2 $ mpirun -np 1 ./Wave2D_mpi 576 500 0 1
+rank[0]'s range = 0 ~ 575
+Elapsed time = 3037352
+[14:01:22] mfukuda@cssmpi1: ~/css534/prog2 $ mpirun -np 1 ./Wave2D_mpi 576 500 0 2
+rank[0]'s range = 0 ~ 575
+Elapsed time = 1597775
+[14:01:28] mfukuda@cssmpi1: ~/css534/prog2 $ mpirun -np 1 ./Wave2D_mpi 576 500 0 3
+rank[0]'s range = 0 ~ 575
+Elapsed time = 1144694
+[14:01:33] mfukuda@cssmpi1: ~/css534/prog2 $ mpirun -np 2 ./Wave2D_mpi 576 500 0 1
+rank[0]'s range = 0 ~ 287
+rank[1]'s range = 288 ~ 575
+Elapsed time = 1799391
+[14:01:45] mfukuda@cssmpi1: ~/css534/prog2 $ mpirun -np 2 ./Wave2D_mpi 576 500 0 2
+rank[0]'s range = 0 ~ 287
+rank[1]'s range = 288 ~ 575
+Elapsed time = 1227828
+[14:01:53] mfukuda@cssmpi1: ~/css534/prog2 $ mpirun -np 2 ./Wave2D_mpi 576 500 0 3
+rank[0]'s range = 0 ~ 287
+rank[1]'s range = 288 ~ 575
+Elapsed time = 743572
+[14:01:59] mfukuda@cssmpi1: ~/css534/prog2 $ mpirun -np 4 ./Wave2D_mpi 576 500 0 1
+rank[2]'s range = 288 ~ 431
+rank[0]'s range = 0 ~ 143
+rank[3]'s range = 432 ~ 575
+rank[1]'s range = 144 ~ 287
+Elapsed time = 1018619
+[14:02:12] mfukuda@cssmpi1: ~/css534/prog2 $ mpirun -np 4 ./Wave2D_mpi 576 500 0 2
+rank[2]'s range = 288 ~ 431
+rank[3]'s range = 432 ~ 575
+rank[0]'s range = 0 ~ 143
+rank[1]'s range = 144 ~ 287
+Elapsed time = 606114
+[14:02:16] mfukuda@cssmpi1: ~/css534/prog2 $ mpirun -np 4 ./Wave2D_mpi 576 500 0 3
+rank[3]'s range = 432 ~ 575
+rank[2]'s range = 288 ~ 431
+rank[0]'s range = 0 ~ 143
+rank[1]'s range = 144 ~ 287
+Elapsed time = 502128
+[14:02:21] mfukuda@cssmpi1: ~/css534/prog2 $ mpdallexit
+[14:02:30] mfukuda@cssmpi1: ~/css534/prog2 $
