@@ -104,6 +104,7 @@ int main(int argc, char *argv[])
 
     // Timer
     Timer timer;
+    MPI_Barrier(MPI_COMM_WORLD); // Start timer after all ranks are set up
     timer.start();
 
     // TODO: implement time=1 initialization (compute z[1] for local rows)
