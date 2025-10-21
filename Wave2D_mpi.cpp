@@ -33,6 +33,7 @@ int main(int argc, char *argv[])
     int max_time = atoi(argv[2]);
     int interval = atoi(argv[3]);
     int nthreads = atoi(argv[4]);
+    int stripe = size / mpi_size;
 
     if (size < 100 || max_time < 3 || interval < 0 || nthreads < 1)
     {
