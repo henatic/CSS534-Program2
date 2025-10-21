@@ -181,12 +181,16 @@ int main(int argc, char *argv[])
 
         if (rank == 0)
         {
-            for (int i = 0; i < size; i++)
+            // NEW PRINTING LOGIC: Match Wave2D.cpp space-separated format
+            for (int j = 0; j < size; j++) // Outer loop: j (column index in global matrix)
             {
-                for (int j = 0; j < size; j++)
+                for (int i = 0; i < size; i++) // Inner loop: i (row index in global matrix)
                 {
-                    cout << full_z_out[i][j] << endl;
+                    cout << full_z_out[i][j];
+                    if (i < size - 1)
+                        cout << " ";
                 }
+                cout << endl;
             }
         }
     }
@@ -238,12 +242,16 @@ int main(int argc, char *argv[])
         if (rank == 0)
         {
             cout << t1 << endl;
-            for (int i = 0; i < size; i++)
+            // NEW PRINTING LOGIC: Match Wave2D.cpp space-separated format
+            for (int j = 0; j < size; j++) // Outer loop: j (column index in global matrix)
             {
-                for (int j = 0; j < size; j++)
+                for (int i = 0; i < size; i++) // Inner loop: i (row index in global matrix)
                 {
-                    cout << full_z_out[i][j] << endl;
+                    cout << full_z_out[i][j];
+                    if (i < size - 1)
+                        cout << " ";
                 }
+                cout << endl;
             }
         }
     }
@@ -255,12 +263,9 @@ int main(int argc, char *argv[])
     for (int t = 2; t < max_time; t++)
     {
         // Array Rotation:
-        // p: Zt (current, writing to this buffer)
-        // q: Zt-1 (previous, used for neighbors and Zt-1 term)
-        // r: Zt-2 (oldest, used for Zt-2 term)
         p = t % 3;
-        q = (t + 2) % 3; // equivalent to (t-1) % 3
-        r = (t + 1) % 3; // equivalent to (t-2) % 3
+        q = (t + 2) % 3; // Zt-1
+        r = (t + 1) % 3; // Zt-2
 
         // A. HALO EXCHANGE (Ghost Cell Communication on Z_{t-1} data at index 'q')
         if (nprocs > 1)
@@ -348,12 +353,16 @@ int main(int argc, char *argv[])
             if (rank == 0)
             {
                 cout << t << endl;
-                for (int i = 0; i < size; i++)
+                // NEW PRINTING LOGIC: Match Wave2D.cpp space-separated format
+                for (int j = 0; j < size; j++) // Outer loop: j (column index in global matrix)
                 {
-                    for (int j = 0; j < size; j++)
+                    for (int i = 0; i < size; i++) // Inner loop: i (row index in global matrix)
                     {
-                        cout << full_z_out[i][j] << endl;
+                        cout << full_z_out[i][j];
+                        if (i < size - 1)
+                            cout << " ";
                     }
+                    cout << endl;
                 }
             }
         }
