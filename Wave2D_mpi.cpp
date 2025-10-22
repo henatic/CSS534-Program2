@@ -1,20 +1,23 @@
 #include <iostream>
-#include <stdlib.h>
-#include "Timer.h"
+#include <vector>
 #include <mpi.h>
 #include <omp.h>
+#include "Timer.h"
 
 using namespace std;
 
-int default_size = 100; // default system size
-int defaultCellWidth = 8;
-double c = 1.0;  // wave speed
-double dt = 0.1; // time quantum
-double dd = 2.0; // change in system
+const int default_size = 100;
+const double c = 1.0;
+const double dt = 0.1;
+const double dd = 2.0;
+
+inline double &at(vector<double> &z, int stride, int i, int j)
+{
+    return z[i * stride + j];
+}
 
 int main(int argc, char *argv[])
 {
-    // MPI initialization
     MPI_Init(&argc, &argv);
 
     int rank, nprocs;
@@ -24,7 +27,7 @@ int main(int argc, char *argv[])
     if (argc != 5)
     {
         if (rank == 0)
-            cerr << "usage: Wave2D_mpi size max_time interval #threads" << endl;
+            cerr << "usage: Wave2D_mpi_omp size max_time interval threads" << endl;
         MPI_Finalize();
         return -1;
     }
@@ -33,106 +36,220 @@ int main(int argc, char *argv[])
     int max_time = atoi(argv[2]);
     int interval = atoi(argv[3]);
     int nthreads = atoi(argv[4]);
-    int stripe = size / mpi_size;
+    omp_set_num_threads(nthreads);
 
-    if (size < 100 || max_time < 3 || interval < 0 || nthreads < 1)
+    if (size < 100 || max_time < 3 || interval < 0)
     {
         if (rank == 0)
         {
-            cerr << "usage: Wave2D_mpi size max_time interval #threads" << endl;
-            cerr << "       where size >= 100 && time >= 3 && interval >= 0 && #threads >= 1" << endl;
+            cerr << "usage: Wave2D size max_time interval" << endl;
+            cerr << "       where size >= 100 && time >= 3 && interval >= 0" << endl;
         }
         MPI_Finalize();
         return -1;
     }
 
-    // Set number of OpenMP threads for this process
-    omp_set_num_threads(nthreads);
-
-    // compute partitioning: divide rows (i axis) among ranks
+    // --- Divide work among ranks (row-wise)
     int base = size / nprocs;
     int rest = size % nprocs;
-    int my_start, my_end;
-    if (rank < rest)
-    {
-        my_start = rank * (base + 1);
-        my_end = my_start + (base + 1) - 1;
-    }
-    else
-    {
-        my_start = rank * base + rest;
-        my_end = my_start + base - 1;
-    }
+    int my_start = (rank < rest) ? rank * (base + 1) : rank * base + rest;
+    int my_rows = (rank < rest) ? base + 1 : base;
+    int my_end = my_start + my_rows - 1;
 
-    // Print out ranges (each rank prints its range)
-    // To keep order more deterministic, have rank 0 print first then others
+    // Print each rank's assigned range (debug/info)
     MPI_Barrier(MPI_COMM_WORLD);
-    cout << "rank[" << rank << "]" << "'s range = " << my_start << " ~ " << my_end << endl;
+    cerr << "rank[" << rank << "]'s range = " << my_start << " ~ " << my_end << endl;
     MPI_Barrier(MPI_COMM_WORLD);
 
-    // allocate local buffers: for simplicity we allocate full width in j but only rows my_start..my_end
-    int local_rows = my_end - my_start + 1;
-    // allocate 3 x local_rows x size
-    double ***z = new double **[3];
-    for (int p = 0; p < 3; p++)
-    {
-        z[p] = new double *[local_rows];
-        for (int i = 0; i < local_rows; i++)
-        {
-            z[p][i] = new double[size];
-            for (int j = 0; j < size; j++)
-                z[p][i][j] = 0.0;
-        }
-    }
+    int up = (rank == 0) ? MPI_PROC_NULL : rank - 1;
+    int down = (rank == nprocs - 1) ? MPI_PROC_NULL : rank + 1;
 
-    // initialize time = 0 in local region
+    int local_rows = my_rows + 2; // plus ghost rows
+    int stride = size;
+
+    vector<double> z0(local_rows * stride, 0.0);
+    vector<double> z1(local_rows * stride, 0.0);
+    vector<double> z2(local_rows * stride, 0.0);
+
+    double coef = (c * dt / dd) * (c * dt / dd);
     int weight = size / default_size;
-    for (int gi = my_start; gi <= my_end; gi++)
+
+    // --- Initialize (time=0)
+    for (int gi = my_start; gi <= my_end; ++gi)
     {
-        int li = gi - my_start;
-        for (int j = 0; j < size; j++)
+        int li = gi - my_start + 1;
+        for (int j = 0; j < size; ++j)
         {
             if (gi > 40 * weight && gi < 60 * weight && j > 40 * weight && j < 60 * weight)
+                at(z0, stride, li, j) = 20.0;
+            else
+                at(z0, stride, li, j) = 0.0;
+        }
+    }
+
+    Timer timer;
+    MPI_Barrier(MPI_COMM_WORLD);
+    timer.start();
+
+    auto exchange = [&](vector<double> &z)
+    {
+        MPI_Sendrecv(&at(z, stride, 1, 0), stride, MPI_DOUBLE, up, 0,
+                     &at(z, stride, local_rows - 1, 0), stride, MPI_DOUBLE, down, 0,
+                     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        MPI_Sendrecv(&at(z, stride, local_rows - 2, 0), stride, MPI_DOUBLE, down, 1,
+                     &at(z, stride, 0, 0), stride, MPI_DOUBLE, up, 1,
+                     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    };
+
+    // --- Print t=0 (only rank 0)
+    if (interval > 0 && 0 % interval == 0 && rank == 0)
+    {
+        cout << 0 << endl;
+        for (int j = 0; j < size; j++)
+        {
+            for (int i = 0; i < size; i++)
             {
-                z[0][li][j] = 20.0;
+                cout << at(z0, stride, i + 1, j); // shift +1 for ghost row alignment
+                if (i < size - 1)
+                    cout << " ";
             }
+            cout << endl;
+        }
+    }
+
+    // --- Compute t=1
+    exchange(z0);
+
+#pragma omp parallel for
+    for (int li = 1; li <= my_rows; ++li)
+    {
+        int gi = my_start + li - 1;
+        for (int j = 0; j < size; ++j)
+        {
+            if (gi == 0 || gi == size - 1 || j == 0 || j == size - 1)
+                at(z1, stride, li, j) = 0.0;
             else
             {
-                z[0][li][j] = 0.0;
+                double neigh = at(z0, stride, li - 1, j) + at(z0, stride, li + 1, j) +
+                               at(z0, stride, li, j - 1) + at(z0, stride, li, j + 1);
+                at(z1, stride, li, j) = at(z0, stride, li, j) + 0.5 * coef * (neigh - 4.0 * at(z0, stride, li, j));
             }
         }
     }
 
-    // Timer
-    Timer timer;
-    MPI_Barrier(MPI_COMM_WORLD); // Start timer after all ranks are set up
-    timer.start();
-
-    // TODO: implement time=1 initialization (compute z[1] for local rows)
-    // TODO: in main loop t=2..max_time-1 do:
-    //   - exchange boundary rows with neighbors using MPI_Sendrecv
-    //   - compute interior rows using OpenMP for parallel loop over rows and cols
-    //   - rank 0 gathers strips from other ranks when printing is required
-    //   - rotate buffers (use modulo index or swap pointers)
-
-    // For now we won't implement full functionality; we'll just run a placeholder loop to measure basic timing
-    for (int t = 1; t < max_time; t++)
+    // --- Gather & print t=1 (exact same as serial)
+    if (interval > 0 && 1 % interval == 0)
     {
-        // placeholder: no-op compute
+        vector<double> local(my_rows * size);
+        for (int li = 1; li <= my_rows; ++li)
+            for (int j = 0; j < size; ++j)
+                local[(li - 1) * size + j] = at(z1, stride, li, j);
+
+        vector<int> counts(nprocs), displs(nprocs);
+        int offset = 0;
+        for (int r = 0; r < nprocs; ++r)
+        {
+            counts[r] = ((r < rest) ? base + 1 : base) * size;
+            displs[r] = offset;
+            offset += counts[r];
+        }
+
+        vector<double> global;
+        if (rank == 0)
+            global.resize(offset);
+
+        MPI_Gatherv(local.data(), my_rows * size, MPI_DOUBLE,
+                    rank == 0 ? global.data() : nullptr,
+                    counts.data(), displs.data(),
+                    MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
+        if (rank == 0)
+        {
+            cout << 1 << endl;
+            for (int j = 0; j < size; ++j)
+            {
+                for (int i = 0; i < size; ++i)
+                {
+                    cout << global[i * size + j];
+                    if (i < size - 1)
+                        cout << " ";
+                }
+                cout << endl;
+            }
+        }
     }
 
-    double elapsed = timer.lap();
+    // --- Main loop (t >= 2)
+    for (int t = 2; t < max_time; ++t)
+    {
+        exchange(z1);
+
+#pragma omp parallel for
+        for (int li = 1; li <= my_rows; ++li)
+        {
+            int gi = my_start + li - 1;
+            for (int j = 0; j < size; ++j)
+            {
+                if (gi == 0 || gi == size - 1 || j == 0 || j == size - 1)
+                    at(z2, stride, li, j) = 0.0;
+                else
+                {
+                    double neigh = at(z1, stride, li - 1, j) + at(z1, stride, li + 1, j) +
+                                   at(z1, stride, li, j - 1) + at(z1, stride, li, j + 1);
+                    at(z2, stride, li, j) =
+                        2.0 * at(z1, stride, li, j) - at(z0, stride, li, j) +
+                        coef * (neigh - 4.0 * at(z1, stride, li, j));
+                }
+            }
+        }
+
+        if (interval > 0 && t % interval == 0)
+        {
+            vector<double> local(my_rows * size);
+            for (int li = 1; li <= my_rows; ++li)
+                for (int j = 0; j < size; ++j)
+                    local[(li - 1) * size + j] = at(z2, stride, li, j);
+
+            vector<int> counts(nprocs), displs(nprocs);
+            int offset = 0;
+            for (int r = 0; r < nprocs; ++r)
+            {
+                counts[r] = ((r < rest) ? base + 1 : base) * size;
+                displs[r] = offset;
+                offset += counts[r];
+            }
+
+            vector<double> global;
+            if (rank == 0)
+                global.resize(offset);
+
+            MPI_Gatherv(local.data(), my_rows * size, MPI_DOUBLE,
+                        rank == 0 ? global.data() : nullptr,
+                        counts.data(), displs.data(),
+                        MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
+            if (rank == 0)
+            {
+                cout << t << endl;
+                for (int j = 0; j < size; ++j)
+                {
+                    for (int i = 0; i < size; ++i)
+                    {
+                        cout << global[i * size + j];
+                        if (i < size - 1)
+                            cout << " ";
+                    }
+                    cout << endl;
+                }
+            }
+        }
+
+        z0.swap(z1);
+        z1.swap(z2);
+    }
+
     if (rank == 0)
-        cerr << "Elapsed time = " << elapsed << endl;
-
-    // free buffers
-    for (int p = 0; p < 3; p++)
-    {
-        for (int i = 0; i < local_rows; i++)
-            delete[] z[p][i];
-        delete[] z[p];
-    }
-    delete[] z;
+        cerr << "Elapsed time = " << timer.lap() << endl;
 
     MPI_Finalize();
     return 0;
