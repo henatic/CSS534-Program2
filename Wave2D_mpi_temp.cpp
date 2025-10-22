@@ -6,13 +6,13 @@
 
 using namespace std;
 
-// Global constants
+// Global constants (Implicitly shared)
 int default_size = 100; // default system size
 double c = 1.0;         // wave speed
 double dt = 0.1;        // time quantum
 double dd = 2.0;        // change in system
 
-// Pre-calculated constant factor for the wave equations
+// Pre-calculated constant factor
 const double k_factor = (c * c * dt * dt) / (dd * dd);
 
 int main(int argc, char *argv[])
@@ -52,12 +52,12 @@ int main(int argc, char *argv[])
     // Set number of OpenMP threads for this process
     omp_set_num_threads(nthreads);
 
-    // 1. MPI Stripe Partitioning (Using logic from Prog2_hints.docx)
-    int stripe_base = size / nprocs; // general stripe size
-    int remainder = size % nprocs;   // in case if size is not divisible
-    int stripe_size;                 // # of rows for this rank's computation (excluding halo)
-    int stripe_begin;                // Global index of the first computed row (i)
-    int stripe_end;                  // Global index of the last computed row (i)
+    // 1. MPI Stripe Partitioning
+    int stripe_base = size / nprocs;
+    int remainder = size % nprocs;
+    int stripe_size;
+    int stripe_begin;
+    int stripe_end;
 
     if (rank < remainder)
     {
@@ -86,7 +86,6 @@ int main(int argc, char *argv[])
     MPI_Barrier(MPI_COMM_WORLD);
 
     // 2. Data Allocation (With Ghost Cells)
-    // local_rows_with_halo = stripe_size (computed) + 2 (ghost cells)
     int local_rows_with_halo = stripe_size + 2;
 
     // Allocate 3 x local_rows_with_halo x size
@@ -97,15 +96,14 @@ int main(int argc, char *argv[])
         for (int i = 0; i < local_rows_with_halo; i++)
         {
             z[p][i] = new double[size];
-            // Initialize to 0.0 (including ghost cells)
             for (int j = 0; j < size; j++)
                 z[p][i][j] = 0.0;
         }
     }
 
-    // 3. Rank 0 Output Buffers (CRITICAL: Allocate Contiguous Buffer for Gatherv)
+    // 3. Rank 0 Output Buffers
     double *contiguous_buffer = nullptr;
-    double **full_z_out = nullptr; // Pointer array to view contiguous buffer as 2D
+    double **full_z_out = nullptr;
 
     int *rcounts = nullptr;
     int *displs = nullptr;
@@ -114,7 +112,6 @@ int main(int argc, char *argv[])
     {
         if (interval > 0)
         {
-            // Allocate a single contiguous block for N*N doubles
             contiguous_buffer = new double[size * size];
             full_z_out = new double *[size];
             for (int i = 0; i < size; i++)
@@ -123,7 +120,7 @@ int main(int argc, char *argv[])
             }
         }
 
-        // Setup Gatherv parameters (needed even if interval=0 for verification)
+        // Setup Gatherv parameters
         rcounts = new int[nprocs];
         displs = new int[nprocs];
         int current_disp = 0;
@@ -149,7 +146,7 @@ int main(int argc, char *argv[])
     int weight = size / default_size;
     for (int gi = stripe_begin; gi <= stripe_end; gi++)
     {
-        int li = gi - stripe_begin + 1; // li=1..stripe_size is the local computed range
+        int li = gi - stripe_begin + 1;
         for (int j = 0; j < size; j++)
         {
             if (gi > 40 * weight && gi < 60 * weight && j > 40 * weight && j < 60 * weight)
@@ -181,10 +178,9 @@ int main(int argc, char *argv[])
 
         if (rank == 0)
         {
-            // NEW PRINTING LOGIC: Match Wave2D.cpp space-separated format
-            for (int j = 0; j < size; j++) // Outer loop: j (column index in global matrix)
+            for (int j = 0; j < size; j++)
             {
-                for (int i = 0; i < size; i++) // Inner loop: i (row index in global matrix)
+                for (int i = 0; i < size; i++)
                 {
                     cout << full_z_out[i][j];
                     if (i < size - 1)
@@ -199,36 +195,35 @@ int main(int argc, char *argv[])
     // 5. time = 1: Calculate z[1] based on z[0]
     // -------------------------------------------------------------------------
 
-    // Indices for t=1: p=1 (current), q=0 (t-1), r=2 (t-2, not used)
     int t1 = 1;
-    int p = 1, q = 0, r = 2;
+    int p = 1, q = 0, r = 2; // q=Zt-1, p=Zt
 
     int li, j, gi;
     double laplacian;
 
-// OpenMP Parallel Computation for t=1
-#pragma omp parallel for collapse(2) private(li, j, gi, laplacian) default(none) \
-    shared(size, p, q, z, stripe_begin, stripe_end, stripe_size, k_factor)
-    for (li = 1; li <= stripe_size; li++)
-    { // li = 1 to stripe_size (local computed rows)
-        for (j = 0; j < size; j++)
+    // OpenMP Parallel Computation for t=1
+    // Outer loop runs in parallel (li), inner loop runs sequentially (j)
+#pragma omp parallel private(li, j, gi, laplacian) shared(z, p, q, stripe_begin, stripe_size)
+    {
+#pragma omp for collapse(2) schedule(static)
+        for (li = 1; li <= stripe_size; li++)
         {
-            gi = stripe_begin + li - 1; // Global row index
+            for (j = 0; j < size; j++)
+            {
+                gi = stripe_begin + li - 1;
 
-            // Boundary Condition
-            if (gi == 0 || gi == size - 1 || j == 0 || j == size - 1)
-            {
-                z[p][li][j] = 0.0;
-            }
-            else
-            {
-                // Neighbors are at li+1, li-1, j+1, j-1. All are locally available in z[0]
-                laplacian = z[q][li + 1][j] + z[q][li - 1][j] + z[q][li][j + 1] + z[q][li][j - 1] - 4.0 * z[q][li][j];
-                // Formula for t=1: Zt = Zt-1 + (k/2) * Laplacian(Zt-1)
-                z[p][li][j] = z[q][li][j] + (k_factor / 2.0) * laplacian;
+                if (gi == 0 || gi == size - 1 || j == 0 || j == size - 1)
+                {
+                    z[p][li][j] = 0.0;
+                }
+                else
+                {
+                    laplacian = z[q][li + 1][j] + z[q][li - 1][j] + z[q][li][j + 1] + z[q][li][j - 1] - 4.0 * z[q][li][j];
+                    z[p][li][j] = z[q][li][j] + (k_factor / 2.0) * laplacian;
+                }
             }
         }
-    }
+    } // end of omp parallel region
 
     // Print state at t=1 if required
     if (t1 < max_time && interval > 0 && t1 % interval == 0)
@@ -242,10 +237,9 @@ int main(int argc, char *argv[])
         if (rank == 0)
         {
             cout << t1 << endl;
-            // NEW PRINTING LOGIC: Match Wave2D.cpp space-separated format
-            for (int j = 0; j < size; j++) // Outer loop: j (column index in global matrix)
+            for (int j = 0; j < size; j++)
             {
-                for (int i = 0; i < size; i++) // Inner loop: i (row index in global matrix)
+                for (int i = 0; i < size; i++)
                 {
                     cout << full_z_out[i][j];
                     if (i < size - 1)
@@ -263,14 +257,13 @@ int main(int argc, char *argv[])
     for (int t = 2; t < max_time; t++)
     {
         // Array Rotation:
-        p = t % 3;
+        p = t % 3;       // Zt
         q = (t + 2) % 3; // Zt-1
         r = (t + 1) % 3; // Zt-2
 
         // A. HALO EXCHANGE (Ghost Cell Communication on Z_{t-1} data at index 'q')
         if (nprocs > 1)
         {
-
             // Deadlock Avoidance: Stagger communication by rank parity
             // Phase 1: Even ranks SEND, Odd ranks RECEIVE
             if (rank % 2 == 0)
@@ -295,7 +288,7 @@ int main(int argc, char *argv[])
 
             // Phase 2: Odd ranks SEND, Even ranks RECEIVE
             else
-            { // Odd ranks send first
+            {
                 if (rank < nprocs - 1)
                 { // Send DOWN
                     MPI_Send(z[q][stripe_size], size, MPI_DOUBLE, rank + 1, TAG_DOWN, MPI_COMM_WORLD);
@@ -316,33 +309,33 @@ int main(int argc, char *argv[])
         }
 
 // B. HYBRID COMPUTATION (OpenMP)
-#pragma omp parallel for collapse(2) private(li, j, gi, laplacian) default(none) \
-    shared(size, p, q, r, z, stripe_size, stripe_begin, stripe_end, k_factor)
-        for (li = 1; li <= stripe_size; li++)
-        { // li = 1 to stripe_size (local computed rows)
-            for (j = 0; j < size; j++)
+// Global constants (k_factor, size) are implicitly SHARED
+// z, p, q, r, stripe_begin/size are explicitly SHARED
+// li, j, gi, laplacian are PRIVATE
+#pragma omp parallel private(li, j, gi, laplacian) shared(z, p, q, r, stripe_begin, stripe_size)
+        {
+#pragma omp for collapse(2) schedule(static)
+            for (li = 1; li <= stripe_size; li++)
             {
-                gi = stripe_begin + li - 1; // Global row index
+                for (j = 0; j < size; j++)
+                {
+                    gi = stripe_begin + li - 1;
 
-                // 1. Boundary Condition
-                if (gi == 0 || gi == size - 1 || j == 0 || j == size - 1)
-                {
-                    z[p][li][j] = 0.0;
-                }
-                else
-                {
-                    // Neighbors are accessed via li-1 and li+1 (li=0/li=stripe_size+1 will be ghost cells)
-                    laplacian = z[q][li + 1][j] + z[q][li - 1][j] + z[q][li][j + 1] + z[q][li][j - 1] - 4.0 * z[q][li][j];
-                    // Formula for t>=2: Zt = 2*Zt-1 - Zt-2 + k * Laplacian(Zt-1)
-                    z[p][li][j] = 2.0 * z[q][li][j] - z[r][li][j] + k_factor * laplacian;
+                    if (gi == 0 || gi == size - 1 || j == 0 || j == size - 1)
+                    {
+                        z[p][li][j] = 0.0;
+                    }
+                    else
+                    {
+                        laplacian = z[q][li + 1][j] + z[q][li - 1][j] + z[q][li][j + 1] + z[q][li][j - 1] - 4.0 * z[q][li][j];
+                        z[p][li][j] = 2.0 * z[q][li][j] - z[r][li][j] + k_factor * laplacian;
+                    }
                 }
             }
-        }
-
+        } // end of omp parallel region
         // C. GATHERING AND PRINTING
         if (interval > 0 && t % interval == 0)
         {
-            // Gatherv z[p] data for printing
             int r_size = stripe_size * size;
             MPI_Gatherv(
                 z[p][1], r_size, MPI_DOUBLE,
@@ -353,10 +346,9 @@ int main(int argc, char *argv[])
             if (rank == 0)
             {
                 cout << t << endl;
-                // NEW PRINTING LOGIC: Match Wave2D.cpp space-separated format
-                for (int j = 0; j < size; j++) // Outer loop: j (column index in global matrix)
+                for (int j = 0; j < size; j++)
                 {
-                    for (int i = 0; i < size; i++) // Inner loop: i (row index in global matrix)
+                    for (int i = 0; i < size; i++)
                     {
                         cout << full_z_out[i][j];
                         if (i < size - 1)
